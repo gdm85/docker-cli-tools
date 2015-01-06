@@ -22,8 +22,10 @@ package main
 import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
+	"io/ioutil"
 	"os"
 	"regexp"
+	"strings"
 )
 
 var Docker *docker.Client
@@ -44,11 +46,56 @@ func showUsage() {
 	fmt.Fprintln(os.Stderr, "docker-hosts is part of docker-cli-tools and licensed under GNU GPLv2")
 }
 
+func getNameOrHostname(inspectData *docker.Container) (string, error) {
+	name := inspectData.Name
+	if len(inspectData.HostnamePath) > 0 {
+		bytes, err := ioutil.ReadFile(inspectData.HostnamePath)
+		if err != nil {
+			return "", err
+		}
+		hostname := strings.TrimSpace(string(bytes))
+
+		if hostname != name {
+			name = fmt.Sprintf("%s (%s)", name, hostname)
+		}
+	}
+
+	return name, nil
+}
+
+func getState(inspectData *docker.Container) string {
+	var state string
+	if !inspectData.State.Running {
+		state = fmt.Sprintf("Exit (%d)", inspectData.State.ExitCode)
+	} else {
+		if inspectData.State.Paused {
+			state = "Paused"
+		} else {
+			state = "Running"
+		}
+	}
+
+	return state
+}
+
 func display(container *docker.APIContainers) error {
-	fmt.Printf("matching: %s\n", container.ID)
+	inspectData, err := fetchInspectData(container.ID)
+	if err != nil {
+		return err
+	}
+
+	nameOrHostname, err := getNameOrHostname(inspectData)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%-40s\t%-23s\t%-10s\t%-16s\n", nameOrHostname, inspectData.Config.Image, getState(inspectData), inspectData.NetworkSettings.IPAddress)
 	return nil
 }
 
+///
+/// fetch inspect data (e.g. all details) and store them in a lookup map
+///
 func fetchInspectData(ID string) (*docker.Container, error) {
 	var inspectData *docker.Container
 	var ok bool
@@ -58,6 +105,10 @@ func fetchInspectData(ID string) (*docker.Container, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// always fix the name leading slash
+		inspectData.Name = inspectData.Name[1:]
+
 		inspectCache[ID] = inspectData
 	}
 	return inspectData, nil
