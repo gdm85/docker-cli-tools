@@ -201,7 +201,6 @@ func main() {
 							os.Exit(1)
 						}
 					}
-
 					if rx.MatchString(inspectData.Name) {
 						err := display(&container)
 						if err != nil {
@@ -209,9 +208,10 @@ func main() {
 							os.Exit(1)
 						}
 						found = true
-						break
+						// here we do not break, since multiple matches are allowed for regex patterns
 					}
 				}
+
 			} // no more container info after this point
 
 			if !found {
