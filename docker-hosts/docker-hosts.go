@@ -228,11 +228,7 @@ func main() {
 						fmt.Fprintf(os.Stderr, "docker-hosts: about '%s': %s\n", getIDOrName(container), err)
 						os.Exit(1)
 					}
-				} else {
-					// nothing matching for this id
-					fmt.Fprintf(os.Stderr, "docker-hosts: id collision match for '%s'\n", pattern)
-					os.Exit(3)
-				}
+				} // otherwise, nothing matches
 			}
 
 			// everything fine, since container was found, continue to next id
