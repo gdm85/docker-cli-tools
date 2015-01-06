@@ -52,9 +52,15 @@ func main() {
 		// pull new inspect data from API
 		container, err := Docker.InspectContainer(containerId)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "docker-ipv4: %s\n", err)
+			fmt.Fprintf(os.Stderr, "docker-ipv4: cannot find '%s': %s\n", containerId, err)
 			os.Exit(2)
 		}
+
+		if !container.State.Running {
+			fmt.Fprintf(os.Stderr, "docker-ipv4: container '%s' is not running\n", container.Name[1:])
+			os.Exit(2)
+		}
+
 		fmt.Println(container.NetworkSettings.IPAddress)
 	}
 }
