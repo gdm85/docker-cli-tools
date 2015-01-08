@@ -21,7 +21,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
+	"github.com/gdm85/go-dockerclient"
 	"io/ioutil"
 	"os"
 	"regexp"
