@@ -12,3 +12,8 @@ docker-hosts
 ------------
 
 An alternative to ``docker ps`` with a more terse output.
+
+docker-images
+-------------
+
+Provide a terse output of all existing images, in name:tag format or ID when a name is not available.
