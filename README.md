@@ -13,6 +13,11 @@ docker-hosts
 
 An alternative to ``docker ps`` with a more terse output.
 
+docker-grep
+------------
+
+Quick way to grep container names.
+
 docker-images
 -------------
 
