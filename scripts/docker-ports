@@ -10,53 +10,79 @@ if ! type jq >/dev/null 2>/dev/null; then
 	exit 1
 fi
 
+
 if [ $# -lt 1 ]; then
-	echo "Please specify at least one container" 1>&2
+	echo "Please specify: container [port1] [port2] [portN...]" 1>&2
 	exit 1
 fi
 
 function show_ports() {
 	local CID="$1"
+	local PORTS="$2"
 
-	local CONTAINER_IPv4=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' $CID) || return $?
-	if [[ -z "$CONTAINER_IPv4" || "$CONTAINER_IPv4" == "<no value>" ]]; then
-		echo "Invalid container: $CID" 1>&2
+	local CONTAINER_IPv4
+	CONTAINER_IPv4=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' $CID) || exit $?
+	if [[ -z "$CONTAINER_IPv4" ]]; then
 		return 1
 	fi
 
-	local NAME=$(docker inspect --format '{{ .Name }}' $CID | awk '{ print substr($0, 2, length($0)-1) }')
+	local NAME
+	local STANZA
+	set -o pipefail && \
+	NAME=$(docker inspect --format '{{ .Name }}' $CID | awk '{ print substr($0, 2, length($0)-1) }') && \
+	STANZA="$(docker inspect --format '{{json .NetworkSettings.Ports }}' $CID)" || return $?
 
-	local STANZA="$(docker inspect --format '{{json .HostConfig.PortBindings }}' $CID)" || return $?
+	## describe all ports
+	if [ -z "$PORTS" ]; then
+		let I=0
+		for P in $(echo "$STANZA" | jq -M 'keys' | tail -n+2 | head -n-1 | sed s/,$// | sed 's/"//g' ); do
+			## get port binding (if any)
+			local SNIP
+			SNIP=$(echo $STANZA | jq -M "to_entries | .[$I].value") || return $?
 
-	echo "$NAME:"
-
-	let I=0
-	for P in $(echo "$STANZA" | jq -M 'keys' | tail -n+2 | head -n-1 | sed s/,$// | sed 's/"//g' ); do
-		## port on container
-		local SRCPORT="$(echo $P | awk -F/ '{ print $1 }')"
-
-		echo -e -n "\t$SRCPORT\t<-\t"
-
-		## get port binding (if any)
-		local SNIP=$(echo $STANZA | jq -M "to_entries | .[$I].value")
-
-		if [[ -z "$SNIP" || "$SNIP" == "null" ]]; then
-			echo "$CONTAINER_IPv4:$SRCPORT"
-		else
-			local HOSTIP="$(echo $SNIP | jq -M -r '.[0].HostIp')"
-
-			## match only bindings on dockerhost
-			if [[ -z "$HOSTIP" || "$HOSTIP" == '0.0.0.0' ]]; then
-				local HOSTPORT="$(echo $SNIP | jq -M -r '.[0].HostPort')"
-				echo "0.0.0.0:$HOSTPORT"
-			else
-				echo "$HOSTIP:$SRCPORT"
+			describe_port "$CONTAINER_IPv4" "$SNIP" "$P" || return $?
+			let I=I+1
+		done
+	else
+		for P in $PORTS; do
+			local SNIP=$(echo "$STANZA" | jq -M -r ".[\"$P\"]")
+			if [[ "$SNIP" == "null" ]]; then
+				echo "No exposed port $P on $NAME" 1>&2
+				return 1
 			fi
-		fi
-		let I=I+1
-	done
+			describe_port "$CONTAINER_IPv4" "$SNIP" "$P" || return $?
+		done
+	fi
 }
 
-for CID in $@; do
-	show_ports "$CID"
-done
+function describe_port() {
+	local CONTAINER_IPv4="$1"
+	local SNIP="$2"
+	local P="$3"
+
+	## port on container, remove /tcp or /udp
+	local SRCPORT="$(echo $P | awk -F/ '{ print $1 }')"
+
+	echo -e -n "$SRCPORT published on "
+
+	if [[ -z "$SNIP" || "$SNIP" == "null" ]]; then
+		echo "$CONTAINER_IPv4 as $SRCPORT"
+	else
+		local HOSTIP
+		HOSTIP="$(echo $SNIP | jq -M -r '.[0].HostIp')" || return $?
+
+		## match only bindings on dockerhost
+		if [[ -z "$HOSTIP" || "$HOSTIP" == '0.0.0.0' ]]; then
+			local HOSTPORT
+			HOSTPORT="$(echo $SNIP | jq -M -r '.[0].HostPort')" || return $?
+			echo "0.0.0.0 as $HOSTPORT"
+		else
+			echo "$HOSTIP as $SRCPORT"
+		fi
+	fi
+}
+
+CID="$1"
+shift 1
+
+show_ports "$CID" "$@"
