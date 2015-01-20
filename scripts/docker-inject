@@ -1,0 +1,80 @@
+#!/bin/bash
+## docker-inject
+##
+## @author gdm85
+##
+## script to inject files/directories inside running containers
+## see also https://github.com/docker/docker/issues/5846
+##
+#
+
+if [[ $# -lt 3 ]]; then
+	echo "Usage: docker-inject cointainer local/file/or/directory container/file/or/directory"
+	exit 1
+fi
+
+CONTAINER="$1"
+ORIGLOCAL="$2"
+DEST="$3"
+
+CID="$(docker inspect --format '{{ .Id }}' $CONTAINER)" || exit $?
+LOCAL="$(readlink -e $ORIGLOCAL)"
+if [ ! $? -eq 0 ]; then
+	echo "docker-inject: '$ORIGLOCAL' does not exist" 1>&2
+	exit 2
+fi
+
+if [[ "$LOCAL" == "/" ]]; then
+	echo "docker-inject: source is full root host filesystem '/'" 1>&2
+	exit 3
+fi
+
+## perform injection
+#echo "---> docker-inject $@"
+
+## fname can be dir or file
+SRC="$(basename $LOCAL)" && \
+DIR="$(dirname $LOCAL)" && \
+cd "$DIR" || exit $?
+
+## tar flags for over-the-wire archive creation
+TARFLAGS="cfz"
+
+if [ -f "$SRC" ]; then
+	## file rename on extract (when destination is not a directory)
+	## uses a symlink (that will be automatically removed)
+	if ! docker exec "$CONTAINER" test -d "$DEST"; then
+		SRC="$(basename $DEST)" && \
+		TMPD="$(mktemp -d)" && \
+		TARFLAGS="${TARFLAGS}h" && \
+		DESTDIR="$(dirname $DEST)" && \
+		cd "$TMPD" && \
+		ln -sf "$LOCAL" "$SRC" || exit $?
+	else
+		## user-specified destination is a directory, use it since source is a file
+		DESTDIR="$DEST"
+	fi
+elif [ -d "$SRC" ]; then
+	## drop source directory into destination
+	DESTDIR="$(dirname $DEST)" || exit $?
+	##NOTE: no rename supported here
+else
+	echo "docker-inject: cannot transfer '$LOCAL': not a file or directory" 1>&2
+	exit 1
+fi
+
+tar $TARFLAGS - "$SRC" | docker exec "$CONTAINER" sh -c "cd '$DESTDIR' && tar xfz -"
+RV=$?
+
+## always cleanup
+if [ ! -z "$TMPD" ]; then
+	rm -rf "$TMPD"
+fi
+test ! $RV -eq 0 && exit $RV
+
+## perform a rename if a directory was injected
+if [ -d "$SRC" ]; then
+	if ! docker exec "$CONTAINER" test -d "$DEST"; then
+		docker exec "$CONTAINER" mv "$DESTDIR/$SRC" "$DEST" || exit $?
+	fi
+fi

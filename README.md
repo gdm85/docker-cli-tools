@@ -22,3 +22,18 @@ docker-images
 -------------
 
 Provide a terse output of all existing images, in name:tag format or ID when a name is not available.
+
+docker-ports
+------------
+
+Alternative to `docker port' output, formats in different style.
+
+docker-iptables
+---------------
+
+Useful tool to show iptables rules with container names instead of 172.* IPv4 addresses.
+
+docker-inject
+-------------
+
+Utility to copy from host **into** containers.
