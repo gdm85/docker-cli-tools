@@ -28,3 +28,4 @@ docker-ipv4/docker-ipv4
 docker-hosts/docker-hosts
 docker-images/docker-images
 docker-grep/docker-grep
+docker-cpu-killers/docker-cpu-killers
