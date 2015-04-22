@@ -20,12 +20,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 package main
 
 import (
-	"github.com/gdm85/go-libshell"
 	"bufio"
 	"fmt"
 	"github.com/gdm85/go-dockerclient"
+	"github.com/gdm85/go-libshell"
 	"github.com/gdm85/goopt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -57,9 +58,11 @@ func (s SortableProcessInfo) Less(j, i int) bool {
 var (
 	Docker              *docker.Client
 	containerNameLookup map[string]string
+	verbose             = goopt.Flag([]string{"-v", "--verbose"}, []string{}, "verbose messages", "")
 	headCount           = goopt.Int([]string{"-n", "--number"}, 10, "amount of milliseconds to wait between each sample collection")
 	every               = goopt.Int([]string{"-e", "--every"}, 50, "amount of milliseconds to wait between each sample collection")
 	maxCollectTime      = goopt.Int([]string{"-t", "--time"}, 1, "amount of seconds to sample data for")
+	rxPid               = regexp.MustCompile("^\\s+PID")
 )
 
 func init() {
@@ -107,8 +110,12 @@ func sampleTopData() (SortableProcessInfo, error) {
 			// grab & store
 			data = append(data, &ProcessInfo{Pid: pid, Cpu: cpu})
 		} else {
-			startParsing = strings.HasPrefix(scanner.Text(), "   PID")
+			startParsing = rxPid.MatchString(scanner.Text())
 		}
+	}
+
+	if *verbose {
+		fmt.Printf("sampled %d top data entries\n", len(data))
 	}
 
 	return data, nil
