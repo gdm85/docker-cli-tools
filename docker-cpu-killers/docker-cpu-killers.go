@@ -59,7 +59,7 @@ var (
 	Docker              *docker.Client
 	containerNameLookup map[string]string
 	verbose             = goopt.Flag([]string{"-v", "--verbose"}, []string{}, "verbose messages", "")
-	headCount           = goopt.Int([]string{"-n", "--number"}, 10, "amount of milliseconds to wait between each sample collection")
+	headCount           = goopt.Int([]string{"-n", "--number"}, 10, "amount of entries to pick from top CPU-consuming list")
 	every               = goopt.Int([]string{"-e", "--every"}, 50, "amount of milliseconds to wait between each sample collection")
 	maxCollectTime      = goopt.Int([]string{"-t", "--time"}, 1, "amount of seconds to sample data for")
 	rxPid               = regexp.MustCompile("^\\s+PID")
